@@ -1,11 +1,29 @@
 #!/bin/bash
 # Path to netcat
-NC="/bin/nc"
+NC="nc" # !MAYBE CHANGE TO YOUR PATH TO NETCAT, e.g. -> "/usr/bin/nc"!
 # Where are we sending messages from / to?
-ORIG_IP="127.0.0.1"
-DEST_IP="127.0.0.11"
+SOURCES=("192.168.190.2" "192.168.190.3" "192.168.190.4" "192.168.190.5" "192.168.190.6" "192.168.190.7" "192.168.190.8")
+DEST_IP="10.0.2.15" # !CHANGE TO YOUR IP ADDRESS!
 # List of messages.
-MESSAGES=("Error Event" "Warning Event" "Info Event")
+MESSAGES=(
+  "System overload detected"
+  "Network connection lost"
+  "Security breach detected"
+  "Disk space running low"
+  "Service restarted successfully"
+  "Access granted to user"
+  "Invalid login attempt detected"
+  "High CPU utilization detected"
+  "File not found error"
+  "Backup completed"
+  "Database connection established"
+  "Critical error: application crashed"
+  "Unauthorized access attempt"
+  "Database table updated"
+  "Service outage detected"
+  "Configuration file modified"
+)
+
 # How long to wait in between sending messages.
 SLEEP_SECS=1
 # How many message to send at a time.
@@ -36,16 +54,34 @@ COUNT=1
 # local5            168     169        170     171       172      173    174     175
 # local6            176     177        178     179       180      181    182     183
 # local7            184     185        186     187       188      189    190     191
-PRIORITIES=(0 1 2 3 4 5 6 7)
 
+# PRI=(Facility Value * 8) + Severity Value
+FACILITIES=("kernel" "user" "mail" "system daemons" "security/authorization messages" "internally by syslogd" "line printer subsystem" "network news subsystem" "UUCP subsystem" "clock daemon" "security/authorization messages" "FTP daemon" "NTP subsystem" "log audit" "log alert" "clock daemon")
+SEVERITIES=("Emergency" "Alert" "Critical" "Error" "Warning" "Notice" "Informational" "Debug")
+
+# loop until user stops the program
 while [ 1 ]
 do
+	# for loop for the number of messages to send each time
 	for i in $(seq 1 $COUNT)
 	do
 		# Picks a random syslog message from the list.
 		RANDOM_MESSAGE=${MESSAGES[$RANDOM % ${#MESSAGES[@]} ]}
-		PRIORITY=${PRIORITIES[$RANDOM % ${#PRIORITIES[@]} ]}
-		$NC $DEST_IP -u 514 -w 0 <<< "<$PRIORITY>`env LANG=us_US.UTF-8 date "+%b %d %H:%M:%S"` $ORIG_IP service: $RANDOM_MESSAGE"
+		SOURCE=${SOURCES[$RANDOM % ${#SOURCES[@]} ]}
+		# Picks a random facility and severity from the lists.
+		FACILITY_INDEX=$((RANDOM % ${#FACILITIES[@]}))
+		SEVERITIY_INDEX=$((RANDOM % ${#SEVERITIES[@]}))
+		FACILITY=${FACILITIES[$FACILITY_INDEX]}
+		LEVEL=${SEVERITIES[$SEVERITIY_INDEX]}
+		# Calculates Priority Value.
+		PRIORITY=$((8 * $FACILITY_INDEX + $SEVERITIY_INDEX))
+
+		# Send the message to log
+		$NC $DEST_IP -u 514 -w 0 <<< "<$PRIORITY>`env LANG=us_US.UTF-8 date "+%b %d %H:%M:%S"` $SOURCE [$FACILITY.$LEVEL] service: $RANDOM_MESSAGE FV:$FACILITY_INDEX SV:$SEVERITIY_INDEX PRI->$PRIORITY"
+
+		# write the message to the shell (for debugging)
+		echo $NC $DEST_IP -u 514 -w 0 "<$PRIORITY>`env LANG=us_US.UTF-8 date "+%b %d %H:%M:%S"` $SOURCE [$FACILITY.$LEVEL] service: $RANDOM_MESSAGE FV:$FACILITY_INDEX SV:$SEVERITIY_INDEX PRI->$PRIORITY"
 	done
+	# wait for a number of seconds and do nothing
 	sleep $SLEEP_SECS
 done
